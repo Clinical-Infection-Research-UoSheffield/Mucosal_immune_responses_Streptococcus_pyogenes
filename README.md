@@ -16,7 +16,7 @@ This repository contains the code to reproduce analyses from the manuscript enti
     Analyses include mixed-effects logistic regression to model event probabilities by IgA levels, correlation matrices, Principal Component Analysis (PCA), with results formatted into comprehensive tables and plots.
 
 The analyses contained within extend the analyses of systemic blood IgG responses which can be found at 
-[[https://github.com/Clinical-Infection-Research-UoSheffield/Development_natural_protective_immunity_Streptococcus_pyogenes/tree/main](https://github.com/Clinical-Infection-Research-UoSheffield/Development_natural_protective_immunity_Streptococcus_pyogenes/tree/main)  
+[https://github.com/Clinical-Infection-Research-UoSheffield/Development_natural_protective_immunity_Streptococcus_pyogenes/tree/main](https://github.com/Clinical-Infection-Research-UoSheffield/Development_natural_protective_immunity_Streptococcus_pyogenes/tree/main)  
 
 
 ---
