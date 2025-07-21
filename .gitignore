@@ -4,3 +4,4 @@ scripts/create_variables_not_for_sharing_OF_project.R
 data/
 R_objects/
 R_objects
+.Rproj.user/
