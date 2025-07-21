@@ -1,3 +1,4 @@
 R_output/
 scripts/create_variables_not_for_sharing_OF_project.R
 .DS_Store
+data/
