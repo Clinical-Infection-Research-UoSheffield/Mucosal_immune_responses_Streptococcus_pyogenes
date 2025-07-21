@@ -1,0 +1,159 @@
+#importn data - not for sharing: 
+
+
+##### This directory imports data and and allows it to be annonymised: 
+
+#### The aim of this script is to create variables and then save them to be sourced: 
+
+# Load librarian
+library(librarian)
+shelf(tidyverse)
+select <- dplyr::select
+
+
+
+# Use this version to create plots with origianl data 
+
+
+# Setup environment
+source("scripts/setup_environment.R")
+
+
+# Set the seed so that the random sampling produces the same result every time.
+set.seed(123)  # You can choose any fixed number
+
+
+
+
+final_dems <- readRDS("R_objects/final_dems.RDS") %>%
+    mutate(
+        age_grp = case_when(
+            age < 2 ~ "< 2 years",
+            age < 5 & age >= 2 ~ "2-4 years",
+            age < 12 & age >= 5 ~ "5-11 years",
+            age < 19 & age >= 12 ~ "12-18 years",
+            TRUE ~ age_grp
+        ),
+        age_grp = factor(age_grp, levels = c("< 2 years", "2-4 years", "5-11 years","12-18 years", "Over 18 years"))
+    )   %>%
+    mutate(age_cat = 
+               case_when(
+                   age >= 6  & age < 10 ~ 6,
+                   age >= 10 & age < 15 ~ 7,
+                   age >= 15 & age < 20 ~ 8,
+                   age >= 20 & age <= 30 ~ 9,
+                   age >= 30 & age <= 40 ~ 10,
+                   age >= 40 ~ 11,
+                   T ~ age
+               ))
+
+# (Optional) Set seed for reproducibility
+set.seed(123)
+
+final_dems <- final_dems %>%
+    filter(!is.na(age_grp)) %>%
+    # Create an age group variable based on age
+    mutate(
+        age_grp = case_when(
+            age < 2 ~ "< 2 years",
+            age < 5 & age >= 2 ~ "2-4 years",
+            age < 12 & age >= 5 ~ "5-11 years",
+            age < 19 & age >= 12 ~ "12-18 years",
+            TRUE ~ "Over 18 years"
+        ),
+        age_grp = factor(age_grp, levels = c("< 2 years", "2-4 years", "5-11 years", "12-18 years", "Over 18 years"))
+    ) %>%
+    # Use rowwise() to sample a pseudo-age for each row based on the age group
+    rowwise() %>%
+    mutate(
+        pseudo_age = case_when(
+            age_grp == "< 2 years"   ~ sample(0:1, 1),       # For example, possible ages: 0 or 1
+            age_grp == "2-4 years"   ~ sample(2:4, 1),       # Possible ages: 2, 3, or 4
+            age_grp == "5-11 years"  ~ sample(5:11, 1),      # Possible ages: 5 through 11
+            age_grp == "12-18 years" ~ sample(12:18, 1),     # Possible ages: 12 through 18
+            age_grp == "Over 18 years" ~ sample(19:70, 1)    # For over 18, you can choose an appropriate range; here I use 19 to 100
+        )
+    ) %>%
+    ungroup()
+
+# Now final_dems has a new column 'pseudo_age' with a random age within each age group.
+
+
+# Define the alphanumeric characters
+chars <- c(0:9, LETTERS)
+
+# Generate all possible 2-character combinations for households
+all_possible_2char <- as.vector(outer(chars, chars, FUN = paste0))
+
+# Generate all possible 3-character combinations for individuals
+all_possible_3char <- as.vector(outer(all_possible_2char, chars, FUN = paste0))
+
+# 1. Create a decoding table for households.
+#    Extract the first three characters of pid (the household identifier),
+#    then assign each unique household a random 2-character code.
+household_decoding <- final_dems %>%
+    mutate(hh = substr(pid, 1, 3)) %>%  # extract household code
+    distinct(hh) %>%
+    mutate(new_hh = paste0("0",sample(all_possible_2char, n())))
+
+# 2. Create a decoding table for individuals.
+#    For each unique pid, assign a random 3-character code,
+#    then join the household mapping so that each new pid is the household code plus the individual code.
+pid_decoding <- final_dems %>%
+    distinct(pid) %>%
+    mutate(
+        hh = substr(pid, 1, 3),                      # extract household code
+        new_indiv = sample(all_possible_3char, n())  # assign random 3-character code
+    ) %>%
+    left_join(household_decoding, by = "hh") %>%     # bring in the household mapping
+    mutate(new_pid = paste0(new_hh, new_indiv)) %>%   # combine them into the final anonymised id
+    select(pid, new_pid)
+
+# 3. Merge the new anonymised pid back into final_dems
+final_dems <- final_dems %>%
+    left_join(pid_decoding, by = "pid") %>%
+    select(-pid) %>%
+    rename(pid = new_pid)
+
+# Optionally, keep the decoding data frames for future reference:
+# - 'household_decoding' maps original household codes to new_hh.
+# - 'pid_decoding' maps original pid to new_pid.
+
+### Would have to remove data of birth from the main dataframe and the script  
+
+final_dems <- 
+    final_dems %>% 
+    filter(!is.na(age_grp)) %>%
+    select(pid,
+           -age,
+           age = pseudo_age,
+           age_grp,
+           sex,
+           hhsize = median_hhsize)
+# dob,
+#  age_cat)
+
+
+saveRDS(final_dems, "data/final_dems.RDS")
+
+titres <- read.titres("R_objects/OF_IgA_titres.RDS", var = "log_RLU_titres")
+colnames(titres)
+
+### add psuedoannonymisation to this data. 
+
+baseline_titres <- readRDS("R_objects/all_baseline_no_disease_titres.RDS") %>%
+    filter(group == "OF_IgA") %>% 
+    filter(Antigen != "DNAseB") %>%
+    select(-group) %>%
+    filter(!is.na(age)) %>%
+    select(-age, -age_grp, - age_cat) %>%
+    left_join(pid_decoding) %>%
+    ungroup() %>%
+    select(-pid) %>%
+    rename(pid = new_pid) %>%
+    left_join(final_dems)
+
+baseline_titres %>% saveRDS("data/baseline_IgA_blood_no_disease_titres.RDS")
+
+
+#### 
