@@ -6,10 +6,12 @@
 #   - data/OF_blood_correlation_df.RDS
 #   - data/compartmentalisation_ratio_df.RDS
 #   - scripts/setup_environment.R
+#   - data/df_for_pca.RDS
 # Outputs:
 #   - Correlation matrix visualisation
 #   - Dunn’s test comparisons across age groups
 #   - Boxplots of compartmentalisation scores by antigen and age
+#   - PCA analysis and plots
 
 # Description:
 # This script performs an exploratory baseline analysis of immune compartmentalisation in participants with no evidence of Strep A disease events. It includes:
@@ -154,22 +156,112 @@ plot_IgA_age_group <- ggplot(compartmentalisation_ratio_df, aes(x = age_grp, y =
 plot_IgA_age_group
 
 
+###############################################
+#### Compartmentalisation PCA analysis ########
+###############################################
 
 
-ggplot(compartmentalisation_ratio_df, aes(x = age_grp, y = log(Compartmentalization_Score))) +
-    geom_boxplot(outliers = F)+
-    geom_jitter(aes(color = Antigen), alpha = 0.5, width = 0.2) +
-    facet_wrap(~Antigen, nrow = 1) +
+# Inputs:
+#   
+# Outputs:
+#   - PCA plots of individuals and variable loadings
+#   - Combined figure panels (scores and loadings by group)
+
+# Description:
+# This script performs principal component analysis (PCA) on all paired oral fluid IgA and blood IgG titres across antigens. It:
+# 1. Performs PCA on the compartmentalised immune response matrix.
+# 2. Visualises PCA scores stratified by age group (individual projections).
+# 3. Visualises PCA loadings coloured by sample type (oral fluid vs blood).
+# 4. Combines the score and loading plots for figure inclusion in the manuscript.
+
+shelf(mixOmics)# PCA with enhanced functionality
+
+
+
+# Load PCA input dataframe
+
+df_for_pca <- readRDS("data/df_for_pca.RDS")
+
+
+# Perform multivariate PCA using mixOmics
+
+pca_result <- pca(X = df_for_pca %>%
+                        select(-age_grp),
+                      scale = T, 
+                        ncomp = 5)
+
+# Extract age group metadata
+pca_age_group <- df_for_pca %>% select(age_grp)
+
+
+
+#### PCA Scores (Individuals) ########
+
+
+# Extract individual PC coordinates (scores)
+
+scores_df <- as_tibble(pca_result$variates$X)
+scores_df$age_grp <- pca_age_group$age_grp  # Add age group
+
+# Plot PC1 vs PC2 coloured by age group
+figb <- ggplot(scores_df, aes(x = PC1, y = PC2, color = age_grp)) +
+    geom_point(size = 3, alpha = 0.2) +
+    labs(x = "PC1", y = "PC2") +
     theme_minimal() +
-    ggpubr::stat_compare_means(
+    stat_ellipse(type = "norm", linetype = 2)
+
+
+#### PCA Loadings (Variables) ########
+
+
+# Extract variable loadings
+loadings_df <- as_tibble(pca_result$loadings$X)
+loadings_df$variable <- rownames(pca_result$loadings$X)
+
+# Extract antigen and group from variable names
+loadings_df <- loadings_df %>%       mutate(
+    group = word(variable, -1),                     # last word
+    Antigen = word(variable, 1, -2, sep = fixed(" ")) # everything but last word
+)
+
+shelf(ggrepel)
+
+figc <- 
+    loadings_df %>%
+    mutate(group = recode(group,
+                          "OF_IgA" = "Oral fluid IgA",
+                          "Blood_IgG" = "Blood IgG")) %>%
+    
+    ggplot( aes(x = PC1, y = PC2, col = group, label = Antigen)) +
+    geom_segment(
+        aes(xend = 0, yend = 0),
+        arrow = arrow(length = unit(0.2, "cm"), ends = "first"),
+        alpha = 0.7
     ) +
-    labs(
-        #  title = "Compartmentalization Score (Ratio of Z score transformed antibody levels) vs. Age",
-        x = "Age",
-        y = "log OF IgA:Blood IgG Z score ratio"
-    ) +
-    guides(col = "none") +
-    scale_colour_manual(values = c("SpyCEP" = "#FDC086", "SpyAD" = "#d19c2f", "SLO" = "#386CB0", "GAC" = "#7FC97F", "DNAseB" = "#BEAED4")) +
-    theme_universal() +
-    theme(axis.text.x = element_text(angle = -90, vjust = 0.5, hjust = 1))
+    geom_text_repel(size = 3, max.overlaps = Inf, col = "black", nudge_x = 0.1) +
+    coord_equal() +
+    labs(x = "PC1", y = "PC2") +
+    theme_minimal()
+
+figc
+
+shelf(cowplot)
+
+
+#### Combine Figures for Output #######
+
+updated_fig <- plot_grid(
+    figb +
+        labs(col = "Age group")
+    
+    
+    , figc +
+        labs(col = "Compartment"), 
+    labels = c("A", "B"))
+
+updated_fig
+
+
+
+
 
