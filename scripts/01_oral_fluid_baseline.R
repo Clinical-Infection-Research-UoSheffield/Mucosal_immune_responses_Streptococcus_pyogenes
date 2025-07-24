@@ -2,17 +2,21 @@
 # Version: 1.0
 # Date: 2025-07-21
 # Author: Dr Alexander J Keeley
-# Inputs: data/
-# Outputs: Plots and summary statistics describing baseline antibody titres across age groups and antigens
+# Inputs:
+#   - data/baseline_IgA_blood_no_disease_titres.RDS
+#   - scripts/setup_environment.R
+# Outputs:
+#   - Modelled antibody titres with centile prediction bands
+#   - Grid of plots for full age range and subset ≤15 years
 
 # Description:
 
 # This script performs a baseline analysis of IgA titres in participants without Strep A disease events. The analysis focuses on:
 # 1. Extracting baseline IgA levels from participants with no Strep A positive disease events.
-# 2. Fitting fractional polynomial models to predict IgG titres based on age and generating residual and fitted values.
+# 2. Fitting fractional polynomial models to predict IgA titres based on age and generating residual and fitted values.
 # 3. Calculating centile values and adding prediction bands based on these centiles.
 # 4. Generating plots for each antigen showing the distribution of titres and prediction bands.
-# 5. Performing correlation matrix and analysis of baseline oral fluid IgA and blood IgG levels 
+
 
 # Requirements:
 
@@ -36,17 +40,16 @@ source("scripts/setup_environment.R")
 
 df <-readRDS("data/baseline_IgA_blood_no_disease_titres.RDS")
 
-# create an empty dataframe to append the output of your for loop
+# create an empty empty objects to store results
 centile_df <- data.frame()
-
-
-##### update 10/07/2024
-
-# Create an empty list to store plots
-
 plots <- list()
-
 plots2 <- list()
+
+
+##################################################
+#### Fit Fractional Polynomial Models & Plot #####
+##################################################
+
 # loop through each antigen
 
 for (a in unique(df$Antigen)) {        
@@ -109,13 +112,19 @@ for (a in unique(df$Antigen)) {
     
 }
 
-# Now, arrange the plots into a grid layout
 
-# If you have many plots, adjust the number of rows and columns as needed
-
+# Arrange full-age plots in a grid
 plot_grid <- do.call(grid.arrange, c(plots, ncol = 4))
 
+
+######################################################
+#### Repeat Modelling and Plotting for Age ≤ 15 ######
+######################################################
+
+# create empty list 
 plots2 <- list()
+
+
 # loop through each antigen
 
 for (a in unique(df$Antigen)) {        
@@ -156,7 +165,7 @@ for (a in unique(df$Antigen)) {
     centile_df <- rbind(centile_df, ctrl)
     
     
-    # Plot
+    # Plot for participants aged ≤15 years only
     p2 <- 
         
         ctrl %>%
